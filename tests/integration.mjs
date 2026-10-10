@@ -12,6 +12,8 @@ for(const file of (await readdir('drizzle')).filter(f=>f.endsWith('.sql')).sort(
 }
 let checks=0;
 function ok(condition,message){assert.ok(condition,message);checks++;console.log(`✓ ${message}`);}
+// Many simultaneous writers on one room can exhaust the server's optimistic retries and get a retryable 409; retry only those.
+async function settle(call){let result=await call();for(let attempt=0;attempt<6&&result.status===409;attempt++)result=await call();return result;}
 function client(){let cookie='';return {async api(path,body){const res=await mf.dispatchFetch(`https://game.test${path}`,{method:body?'POST':'GET',headers:{cookie,...(body?{'Content-Type':'application/json','Origin':'https://game.test'}:{})},body:body?JSON.stringify(body):undefined});const set=res.headers.get('set-cookie');if(set)cookie=set.split(';')[0];return {status:res.status,...await res.json()};}};}
 try{
  const a=client(),b=client(),c=client();
@@ -101,7 +103,7 @@ try{
  for(let i=0;i<12;i++)await spyCmd(i,'ready',{ready:true});
  ok((await spyCmd(0,'start')).room.gameView.phase==='setup','Spyfall starts configuration inside central room');
  await spyCmd(0,'game-action',{gameAction:{type:'begin'}});
- const views=await Promise.all(agents.slice(0,12).map((_,i)=>spyCmd(i,'heartbeat')));
+ const views=await Promise.all(agents.slice(0,12).map((_,i)=>settle(()=>spyCmd(i,'heartbeat'))));
  const spyIndexes=views.map((r,i)=>r.room.gameView.myRole.spy?i:-1).filter(i=>i>=0);
  ok(spyIndexes.length===2,'12 independent sessions receive exactly two spy roles');
  ok(spyIndexes.every(i=>views[i].room.gameView.location===null&&views[i].room.gameView.scenario===null&&views[i].room.gameView.revealed===null),'API does not disclose location or roles to spies');
@@ -132,7 +134,7 @@ try{
  const started=(await dcCmd(0,'start')).room;
  ok(started.gameView.phase==='setup'&&started.game.id==='deception','Replacement game starts through existing room flow');
  await dcCmd(0,'game-action',{gameAction:{type:'deal'}});
- const caseViews=await Promise.all(detectives.slice(0,10).map((_,i)=>dcCmd(i,'heartbeat')));
+ const caseViews=await Promise.all(detectives.slice(0,10).map((_,i)=>settle(()=>dcCmd(i,'heartbeat'))));
  const murderer=caseViews.findIndex(r=>r.room.gameView.myRole==='murderer');
  const investigator=caseViews.findIndex(r=>r.room.gameView.myRole==='investigator');
  ok(caseViews.filter(r=>r.room.gameView.myRole==='murderer').length===1,'Independent sessions receive one murderer');
@@ -154,5 +156,48 @@ try{
  await dcCmd(0,'reset');for(let i=0;i<10;i++)await dcCmd(i,'ready',{ready:true});await dcCmd(0,'start');
  await dcCmd(0,'game-action',{gameAction:{type:'deal'}});await dcCmd(1,'leave');
  ok((await dcCmd(0,'heartbeat')).room.gameView.winner==='cancelled','Room departure cancels Deception consistently');
+ // Online players and profile rename
+ const o1=client(),o2=client(),o3=client(),o4=client();
+ const [po1,po2,po3]=await Promise.all([o1.api('/api/session',{name:'ออนไลน์หนึ่ง'}),o2.api('/api/session',{name:'ออนไลน์สอง'}),o3.api('/api/session',{name:'ออนไลน์สาม'})]);
+ ok((await o4.api('/api/presence',{})).status===401,'Presence requires a valid player session');
+ ok((await mf.dispatchFetch('https://game.test/api/presence',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status===403,'Cross-origin presence heartbeat rejected');
+ const seen1=await o1.api('/api/presence',{});
+ ok(seen1.status===200&&seen1.players.some(p=>p.id===po1.player.id&&p.name==='ออนไลน์หนึ่ง'),'Heartbeat lists the caller as online');
+ ok(seen1.players.some(p=>p.id===po2.player.id)&&seen1.players.some(p=>p.id===po3.player.id),'Players who just signed in are listed to other players');
+ ok(seen1.total>=seen1.players.length&&seen1.players.every(p=>typeof p.inRoom==='boolean'&&Object.keys(p).sort().join()==='id,inRoom,name'),'Presence exposes only id, name and in-room flag');
+ const presenceRoom=(await o2.api('/api/room',{action:'create',gameId:'room-test'})).room.code;
+ ok((await o1.api('/api/presence',{})).players.find(p=>p.id===po2.player.id).inRoom===true&&!JSON.stringify(await o1.api('/api/presence',{})).includes(presenceRoom),'In-room status is shown without leaking the room code');
+ await db.prepare('UPDATE sessions SET last_seen=? WHERE player_id=?').bind(Date.now()-60000,po3.player.id).run();
+ ok(!(await o1.api('/api/presence',{})).players.some(p=>p.id===po3.player.id),'Player without a recent heartbeat is no longer online');
+ ok((await o3.api('/api/presence',{})).players.some(p=>p.id===po3.player.id),'Player returns to the online list after a new heartbeat');
+ await o3.api('/api/logout',{});
+ ok(!(await o1.api('/api/presence',{})).players.some(p=>p.id===po3.player.id),'Logged-out player disappears from the online list immediately');
+ ok((await o4.api('/api/profile',{name:'ไม่ได้ล็อกอิน'})).status===401,'Rename requires a valid player session');
+ ok((await mf.dispatchFetch('https://game.test/api/profile',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status===403,'Cross-origin rename rejected');
+ for(const [bad,label] of [[' ','blank'],['x','too short'],['ก'.repeat(25),'too long'],['<b>ชื่อ</b>','markup characters'],['ชื่อ\u0000ผิด','control characters'],[123,'non-string']])
+  ok((await o1.api('/api/profile',{name:bad})).status===400,`Rename rejects ${label} name`);
+ ok((await o1.api('/api/session')).player.name==='ออนไลน์หนึ่ง','Rejected renames leave the name unchanged');
+ ok((await o1.api('/api/profile',{name:'  ออนไลน์หนึ่ง  '})).player.name==='ออนไลน์หนึ่ง','Renaming to the current name is a no-op');
+ const chatBefore=await o1.api('/api/chat',{body:'ข้อความก่อนเปลี่ยนชื่อ',requestId:crypto.randomUUID()});
+ ok(chatBefore.status===201&&chatBefore.message.name==='ออนไลน์หนึ่ง','Chat message is stored under the old name');
+ const renamed=await o1.api('/api/profile',{name:'  นักเล่นใหม่  ',playerId:po2.player.id});
+ ok(renamed.status===200&&renamed.player.id===po1.player.id&&renamed.player.name==='นักเล่นใหม่','Rename trims the name and always targets the session player');
+ ok((await o2.api('/api/session')).player.name==='ออนไลน์สอง','Rename cannot change another player by sending their ID');
+ ok((await o1.api('/api/session')).player.name==='นักเล่นใหม่','Refresh shows the new name from the server');
+ ok((await o2.api('/api/presence',{})).players.some(p=>p.id===po1.player.id&&p.name==='นักเล่นใหม่'),'Other players see the new name in the online list');
+ ok((await o2.api('/api/chat')).messages.find(m=>m.id===chatBefore.message.id).name==='นักเล่นใหม่','Earlier chat messages show the new name');
+ await new Promise(resolve=>setTimeout(resolve,2100));
+ ok((await o1.api('/api/chat',{body:'ข้อความหลังเปลี่ยนชื่อ',requestId:crypto.randomUUID()})).message.name==='นักเล่นใหม่','New chat messages use the new name');
+ ok((await o1.api('/api/profile',{name:'เปลี่ยนรัว'})).status===429,'Renaming again immediately is rate limited');
+ ok((await o1.api('/api/session')).player.name==='นักเล่นใหม่','Rate-limited rename leaves the name unchanged');
+ const renameRoom=(await o1.api('/api/room',{action:'create',gameId:'room-test'})).room.code;
+ await o2.api('/api/room',{action:'leave',code:presenceRoom});
+ ok((await o2.api('/api/room',{action:'join',code:renameRoom})).room.members.some(m=>m.name==='นักเล่นใหม่'),'Room shows the renamed player to others');
+ await db.prepare('UPDATE sessions SET name_changed=0 WHERE player_id=?').bind(po1.player.id).run();
+ ok((await o1.api('/api/profile',{name:'ชื่อในห้อง'})).player.name==='ชื่อในห้อง','Rename is allowed again after the cooldown');
+ ok((await o2.api('/api/room',{action:'heartbeat',code:renameRoom})).room.members.find(m=>m.id===po1.player.id).name==='ชื่อในห้อง','Rename updates the member name inside the current room');
+ const roomRow=await db.prepare('SELECT data FROM rooms WHERE code=?').bind(renameRoom).first();const stale=JSON.parse(roomRow.data);stale.members.find(m=>m.id===po1.player.id).name='ชื่อเก่าค้าง';
+ await db.prepare('UPDATE rooms SET data=?,version=version+1 WHERE code=?').bind(JSON.stringify(stale),renameRoom).run();
+ ok((await o1.api('/api/room',{action:'heartbeat',code:renameRoom})).room.members.find(m=>m.id===po1.player.id).name==='ชื่อในห้อง','Room heartbeat self-heals a stale member name');
  console.log(`PASS ${checks} integration checks`);
 }finally{await mf.dispose();}
