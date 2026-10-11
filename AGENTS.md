@@ -13,4 +13,4 @@ This is an editable source export of the Thai Boardmates multiplayer game site, 
 - Run pnpm typecheck, pnpm test:integration, and pnpm build after substantive changes. Test multi-player changes with independent sessions.
 - Preserve Thai user-facing language and responsive desktop/mobile behavior.
 - Do not commit secrets, .env files, node_modules, build artifacts, or local database files. Preserve vendor license notices.
-- A new GitHub repository is a source copy. It is not automatically connected to the original Sites deployment. Do not publish, change access controls, or modify the original site's identity unless the user asks for that action.
+- Production runs on Cloudflare Workers + D1 (see DEPLOY-CLOUDFLARE.md). The earlier OpenAI Sites hosting is no longer used. Merging to main may trigger a deploy once Workers Builds is connected; do not merge, publish, or change access controls unless the user asks for that action.
