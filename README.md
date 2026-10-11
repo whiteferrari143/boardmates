@@ -4,7 +4,7 @@
 
 ## เครื่องมือและโครงสร้าง
 
-React 19 + TypeScript, Vinext/Vite, Cloudflare Worker และ D1 (SQLite ส่วนกลาง) ใช้ Sites สำหรับเผยแพร่ Cookie HttpOnly เก็บเฉพาะ token; ชื่อและ ID/session เก็บบนเซิร์ฟเวอร์ ไม่มี localStorage หรือข้อมูลจำลองเป็นระบบห้อง
+React 19 + TypeScript, Vinext/Vite, Cloudflare Worker และ D1 (SQLite ส่วนกลาง) เผยแพร่บน Cloudflare Workers (ดู `DEPLOY-CLOUDFLARE.md`) Cookie HttpOnly เก็บเฉพาะ token; ชื่อและ ID/session เก็บบนเซิร์ฟเวอร์ ไม่มี localStorage หรือข้อมูลจำลองเป็นระบบห้อง
 
 | ส่วน | ไฟล์ | หน้าที่ |
 |---|---|---|
@@ -35,9 +35,8 @@ pnpm dev
 
 ค่าที่จำเป็น:
 
-- `.openai/hosting.json` ต้องมี `d1: "DB"`; `r2` เป็น `null`
-- โปรเจกต์นี้มี Site ID อยู่แล้ว ใช้ ID เดิมเมื่อแก้ไขและเผยแพร่
-- D1 จริงและ Worker ถูกผูกให้ตอนเผยแพร่ผ่าน Sites ไม่มี API key หรือ secret ที่ต้องใส่เพิ่มสำหรับ Guest
+- Production ตั้งค่าใน `wrangler.jsonc` (binding D1 ชื่อ `DB`) ต้องใส่ `database_id` ของฐานข้อมูลที่สร้างเอง
+- ไม่มี API key หรือ secret ที่ต้องใส่เพิ่มสำหรับ Guest ขั้นตอนเผยแพร่และ migration อยู่ใน `DEPLOY-CLOUDFLARE.md`
 - `wrangler.local.jsonc` มี ID placeholder สำหรับ **local เท่านั้น** ไม่ใช่ ID ฐานข้อมูล production
 - ใช้ HTTPS เมื่อเผยแพร่ เพื่อให้ cookie Secure และการคัดลอกลิงก์ทำงาน
 

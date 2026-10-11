@@ -1,0 +1,19 @@
+{
+  // Production config for Cloudflare Workers. See DEPLOY-CLOUDFLARE.md.
+  // The local dev flow (pnpm dev / pnpm db:local) does not use this file.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "boardmates",
+  "main": "./build/sites-worker.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "boardmates",
+      // Replace with the ID of the D1 database you created (not a secret).
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}
