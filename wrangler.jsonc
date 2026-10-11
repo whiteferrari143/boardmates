@@ -11,8 +11,8 @@
     {
       "binding": "DB",
       "database_name": "boardmates",
-      // Replace with the ID of the D1 database you created (not a secret).
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      // ID of the production D1 database (not a secret).
+      "database_id": "1d5f8410-e330-4f58-8a15-a04a955496b1",
       "migrations_dir": "drizzle"
     }
   ]

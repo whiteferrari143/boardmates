@@ -7,7 +7,7 @@
 ## ตั้งค่าครั้งแรก
 
 1. **สร้างฐานข้อมูล D1** ใน Cloudflare Dashboard ไปที่ Storage & Databases → D1 → Create database ตั้งชื่อ `boardmates` แล้วคัดลอก **Database ID**
-2. **ใส่ Database ID** ในไฟล์ `wrangler.jsonc` แทนค่า `REPLACE_WITH_YOUR_D1_DATABASE_ID` แล้ว commit เข้า `main` (ID นี้ไม่ใช่ความลับ)
+2. **ใส่ Database ID** ในไฟล์ `wrangler.jsonc` (ช่อง `database_id`) แล้ว commit เข้า `main` (ID นี้ไม่ใช่ความลับ) ตั้งค่าไว้แล้วสำหรับฐานข้อมูล `boardmates` ปัจจุบัน
 3. **เชื่อม GitHub** ที่ Workers & Pages → Create → Import a repository เลือก `whiteferrari143/boardmates`
    - ชื่อ Worker ต้องเป็น `boardmates` (ตรงกับ `name` ใน `wrangler.jsonc`)
    - Build command: `pnpm build`
