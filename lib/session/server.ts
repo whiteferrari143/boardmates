@@ -9,6 +9,12 @@ export async function session(req:Request):Promise<Player> {
  if(!row) throw new AppError('เซสชันหมดอายุ กรุณาเข้าเล่นอีกครั้ง',401);
  return {id:row.player_id,name:row.name};
 }
+export function validateName(value:unknown):string {
+ if(typeof value!=='string')throw new AppError('กรุณากรอกชื่อผู้เล่น');
+ const name=value.trim().normalize('NFC'),length=Array.from(name).length;
+ if(!length)throw new AppError('กรุณากรอกชื่อผู้เล่น');if(length<2||length>24)throw new AppError('ชื่อผู้เล่นต้องมีความยาว 2–24 ตัวอักษร');if(/[\p{Cc}\p{Cf}<>]/u.test(name))throw new AppError('ชื่อมีอักขระที่ไม่รองรับ');
+ return name;
+}
 export function verifyOrigin(req:Request) {
  const origin=req.headers.get('origin');
  if(origin && origin!==new URL(req.url).origin) throw new AppError('ไม่อนุญาตคำขอจากเว็บไซต์อื่น',403);

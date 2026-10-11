@@ -10,6 +10,8 @@ React 19 + TypeScript, Vinext/Vite, Cloudflare Worker และ D1 (SQLite ส�
 |---|---|---|
 | Session | `lib/session/server.ts`, `app/api/session/route.ts` | Guest ID, ตรวจชื่อ, cookie, อายุ session 7 วัน |
 | Lobby | `app/api/lobby/route.ts`, `app/page.tsx` | รายการเกม, สร้างห้อง, เข้าด้วยรหัส |
+| Presence | `app/api/presence/route.ts`, `lib/presence/types.ts`, `components/OnlinePlayers.tsx` | heartbeat และรายชื่อผู้เล่นออนไลน์ในล็อบบี้ |
+| Profile | `app/api/profile/route.ts`, `components/ProfileMenu.tsx` | เมนูโปรไฟล์และเปลี่ยนชื่อผู้เล่น |
 | Rooms | `lib/rooms/server.ts`, `types.ts`, `app/api/room/route.ts` | สมาชิก, ความพร้อม, โอนเจ้าของ, timeout, ตรวจสิทธิ์ |
 | Game registry | `lib/games/registry.ts` | แหล่งข้อมูลเกมเพียงจุดเดียว |
 | Game engine | `lib/games/types.ts`, `engine.ts` | interface, ตรวจ action, เปลี่ยน state, จบเกม, private view |
@@ -75,6 +77,14 @@ pnpm build
 - แท็บในเบราว์เซอร์เดียวกันใช้ cookie เดียวกันและถือเป็นผู้เล่นคนเดียว ทดสอบคนละผู้เล่นด้วยคนละเบราว์เซอร์หรือโปรไฟล์
 - ห้องระหว่างเริ่มเกมอนุญาตให้สมาชิกเดิมเชื่อมต่อใหม่ สมาชิกใหม่ต้องรอเจ้าของกลับห้องรอ
 - ถ้าผู้เล่นออกระหว่างเล่น ไม่คืนเกมโดยอัตโนมัติ เกมอนาคตควรกำหนดวิธีจัดการ playerIds ที่ออกใน validateAction/updateState หรือเจ้าของกลับห้องรอ
+
+## ผู้เล่นออนไลน์และโปรไฟล์
+
+- ผู้เล่นที่เข้าสู่ระบบแล้วส่ง `POST /api/presence` ทุก 5 วินาที (15 วินาทีเมื่อแท็บอยู่เบื้องหลัง) เซิร์ฟเวอร์บันทึกเวลาล่าสุดใน `sessions.last_seen` ตามผู้เล่นใน session cookie เท่านั้น
+- ผู้เล่นนับว่าออนไลน์เมื่อมี heartbeat ภายใน 30 วินาที และออกจากรายการทันทีเมื่อออกจากระบบ ล็อบบี้แสดงชื่อ สถานะ “อยู่ในห้อง” และจำนวนทั้งหมด (สูงสุด 100 ชื่อ) โดยไม่เปิดเผยรหัสห้อง
+- เมนูโปรไฟล์ที่ชิปชื่อมุมขวาบนใช้ `POST /api/profile` เปลี่ยนชื่อผู้เล่นของ session ปัจจุบันเท่านั้น (กฎชื่อเดียวกับตอนเข้าเล่น คือ 2–24 ตัวอักษร) เปลี่ยนซ้ำได้ทุก 10 วินาที (`sessions.name_changed`)
+- ชื่อใหม่ถูกปรับใน `sessions`, ข้อความแชตเดิมของผู้เล่น และห้องที่อยู่ปัจจุบัน หากปรับห้องไม่ทัน heartbeat ของห้องจะซิงก์ชื่อให้เองในคำขอถัดไป
+- Migration `0003` เพิ่มคอลัมน์ `last_seen`, `name_changed` และ index ใน `sessions`
 
 ## การอัปเดตและความปลอดภัย
 

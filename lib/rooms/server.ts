@@ -66,7 +66,7 @@ export async function roomCommand(code:string,player:Player,action:string,payloa
   const now=Date.now();member={...player,ready:false,lastSeen:now,joined:now};room.members.push(member);
  }
  if(!member)throw new AppError('คุณไม่ได้อยู่ในห้องนี้ หรือที่นั่งหมดอายุแล้ว',403);
- member.lastSeen=Date.now();
+ member.lastSeen=Date.now();member.name=player.name;
  if(action==='ready') {
   if(room.phase!=='waiting')throw new AppError('เปลี่ยนความพร้อมได้เฉพาะก่อนเริ่มเกม');
   if(typeof payload.ready!=='boolean')throw new AppError('สถานะพร้อมไม่ถูกต้อง');member.ready=payload.ready;
