@@ -131,6 +131,6 @@ export function marketView(s:MarketState,id:string){
 export type MarketView=ReturnType<typeof marketView>;
 export const crystalMarket=defineGame({
  id:'crystal-market',name:'ตลาดคริสตัล',description:'สะสมคริสตัล แลกเปลี่ยน อัปเกรด แล้วส่งมอบให้ครบก่อนใคร',minPlayers:2,maxPlayers:5,
- status:'available',screen:'crystal-market',color:'lime',icon:'Gem',category:'วางแผน · สะสมทรัพยากร',private:true,
+ status:'available',screen:'crystal-market',color:'lime',icon:'Gem',category:'วางแผน · สะสมทรัพยากร',
  createInitialState:initial,validateAction:validate,updateState:update,isFinished:(s:MarketState)=>s.phase==='over',getPlayerView:marketView,
 });
