@@ -6,7 +6,7 @@ import * as chat from '../app/api/chat/route';
 import * as presence from '../app/api/presence/route';
 import * as profile from '../app/api/profile/route';
 import * as unlock from '../app/api/unlock/route';
-import {gameRegistry} from '../lib/games/registry';
+import {gameRegistry,gameCatalog} from '../lib/games/registry';
 import {defineGame} from '../lib/games/types';
 // Test-only module: never part of the deployed application routes.
 // Minimal generic game used by the room-flow tests (the lobby no longer ships a placeholder game).
@@ -14,6 +14,9 @@ gameRegistry['room-test']=defineGame<{players:string[]},unknown,{players:string[
  id:'room-test',name:'ทดสอบห้อง',description:'test',minPlayers:2,maxPlayers:8,status:'available',screen:'room-test',color:'lime',icon:'Gem',category:'test',
  createInitialState:ctx=>({players:ctx.playerIds}),validateAction:()=>false,updateState:s=>s,isFinished:()=>false,getPlayerView:s=>s,
 });
+// Test-only private game (the shipped games are all public) to exercise the group-code lock.
+gameRegistry['private-market-test']={...gameRegistry['crystal-market'],id:'private-market-test',private:true};
+gameCatalog.push({...gameCatalog.find(g=>g.id==='crystal-market')!,id:'private-market-test',private:true});
 gameRegistry['private-view-test']=defineGame<{hands:Record<string,string>;turn:string},{type:'finish'}, {hand:string;finished:boolean}>({
  ...gameRegistry['room-test'],id:'private-view-test',
  createInitialState:ctx=>({hands:Object.fromEntries(ctx.playerIds.map((id,i)=>[id,`SECRET-${i}`])),turn:ctx.hostId}),

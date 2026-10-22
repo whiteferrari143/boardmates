@@ -202,17 +202,17 @@ try{
  // Private game: hidden until the group code is entered; enforced on the server.
  const gm=client(),gf=client(),gx=client();
  const pm=await gm.api('/api/session',{name:'ผู้เล่นลับ1'}),pf=await gf.api('/api/session',{name:'ผู้เล่นลับ2'});await gx.api('/api/session',{name:'คนนอก'});
- const hasMarket=r=>r.games.some(g=>g.id==='crystal-market');
+ const hasMarket=r=>r.games.some(g=>g.id==='private-market-test');
  ok(!hasMarket(await client().api('/api/lobby')),'Anonymous lobby hides the private game');
  ok(!hasMarket(await gm.api('/api/lobby')),'Logged-in player without the code does not see the private game');
- ok((await gm.api('/api/room',{action:'create',gameId:'crystal-market'})).status===403,'Cannot create a private room without the code');
+ ok((await gm.api('/api/room',{action:'create',gameId:'private-market-test'})).status===403,'Cannot create a private room without the code');
  ok((await client().api('/api/unlock',{code:'test-group-code-123'})).status===401,'Unlock requires a session');
  ok((await mf.dispatchFetch('https://game.test/api/unlock',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status===403,'Cross-origin unlock rejected');
  ok((await gm.api('/api/unlock',{code:'wrong'})).status===403,'Wrong group code is rejected');
  ok(!hasMarket(await gm.api('/api/lobby')),'A wrong code unlocks nothing');
  ok((await gm.api('/api/unlock',{code:'test-group-code-123'})).ok===true,'Correct group code unlocks private games');
  ok(hasMarket(await gm.api('/api/lobby')),'Unlocked player sees the private game');
- const mroom=await gm.api('/api/room',{action:'create',gameId:'crystal-market'});ok(mroom.status===200,'Unlocked player creates a private room');
+ const mroom=await gm.api('/api/room',{action:'create',gameId:'private-market-test'});ok(mroom.status===200,'Unlocked player creates a private room');
  ok((await gx.api('/api/room',{action:'join',code:mroom.room.code})).status===403,'Player without the code cannot join a private room by code');
  await gf.api('/api/unlock',{code:'test-group-code-123'});
  ok((await gf.api('/api/room',{action:'join',code:mroom.room.code})).room.members.length===2,'Unlocked friend joins the private room');
