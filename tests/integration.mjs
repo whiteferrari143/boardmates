@@ -5,7 +5,7 @@ const {build}=wranglerRequire('esbuild');
 import {readFile,readdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 await build({entryPoints:['tests/worker.ts'],bundle:true,format:'esm',platform:'neutral',outfile:'.sites-runtime/test-worker.js',external:['cloudflare:workers'],alias:{'@':process.cwd()}});
-const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/test-worker.js',compatibilityDate:'2026-05-15',d1Databases:{DB:'test-boardmates'}});
+const mf=new Miniflare({modules:true,scriptPath:'.sites-runtime/test-worker.js',compatibilityDate:'2026-05-15',d1Databases:{DB:'test-boardmates'},bindings:{PRIVATE_GAME_CODE:'test-group-code-123'}});
 const db=await mf.getD1Database('DB');
 for(const file of (await readdir('drizzle')).filter(f=>f.endsWith('.sql')).sort()){
  const sql=await readFile(`drizzle/${file}`,'utf8');for(const statement of sql.split('--> statement-breakpoint'))await db.prepare(statement.trim()).run();
@@ -199,5 +199,33 @@ try{
  const roomRow=await db.prepare('SELECT data FROM rooms WHERE code=?').bind(renameRoom).first();const stale=JSON.parse(roomRow.data);stale.members.find(m=>m.id===po1.player.id).name='ชื่อเก่าค้าง';
  await db.prepare('UPDATE rooms SET data=?,version=version+1 WHERE code=?').bind(JSON.stringify(stale),renameRoom).run();
  ok((await o1.api('/api/room',{action:'heartbeat',code:renameRoom})).room.members.find(m=>m.id===po1.player.id).name==='ชื่อในห้อง','Room heartbeat self-heals a stale member name');
+ // Private game: hidden until the group code is entered; enforced on the server.
+ const gm=client(),gf=client(),gx=client();
+ const pm=await gm.api('/api/session',{name:'ผู้เล่นลับ1'}),pf=await gf.api('/api/session',{name:'ผู้เล่นลับ2'});await gx.api('/api/session',{name:'คนนอก'});
+ const hasMarket=r=>r.games.some(g=>g.id==='crystal-market');
+ ok(!hasMarket(await client().api('/api/lobby')),'Anonymous lobby hides the private game');
+ ok(!hasMarket(await gm.api('/api/lobby')),'Logged-in player without the code does not see the private game');
+ ok((await gm.api('/api/room',{action:'create',gameId:'crystal-market'})).status===403,'Cannot create a private room without the code');
+ ok((await client().api('/api/unlock',{code:'test-group-code-123'})).status===401,'Unlock requires a session');
+ ok((await mf.dispatchFetch('https://game.test/api/unlock',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status===403,'Cross-origin unlock rejected');
+ ok((await gm.api('/api/unlock',{code:'wrong'})).status===403,'Wrong group code is rejected');
+ ok(!hasMarket(await gm.api('/api/lobby')),'A wrong code unlocks nothing');
+ ok((await gm.api('/api/unlock',{code:'test-group-code-123'})).ok===true,'Correct group code unlocks private games');
+ ok(hasMarket(await gm.api('/api/lobby')),'Unlocked player sees the private game');
+ const mroom=await gm.api('/api/room',{action:'create',gameId:'crystal-market'});ok(mroom.status===200,'Unlocked player creates a private room');
+ ok((await gx.api('/api/room',{action:'join',code:mroom.room.code})).status===403,'Player without the code cannot join a private room by code');
+ await gf.api('/api/unlock',{code:'test-group-code-123'});
+ ok((await gf.api('/api/room',{action:'join',code:mroom.room.code})).room.members.length===2,'Unlocked friend joins the private room');
+ for(const c of [gm,gf])await c.api('/api/room',{action:'ready',code:mroom.room.code,ready:true});
+ const mstart=await gm.api('/api/room',{action:'start',code:mroom.room.code});ok(mstart.room.phase==='playing','Private game starts for two players');
+ const vm=mstart.room.gameView,vf=(await gf.api('/api/room',{action:'heartbeat',code:mroom.room.code})).room.gameView;
+ ok(vm.hand.length===2&&vm.handCounts[pf.player.id]===2&&!('deck' in vm)&&!('golemDeck' in vm)&&vf.hand.length===2&&!('hands' in vf),'Each player view has their own hand, hand counts and no deck data');
+ const mover=vm.players[vm.turn]===pm.player.id?gm:gf,waiter=mover===gm?gf:gm;
+ ok((await waiter.api('/api/room',{action:'game-action',code:mroom.room.code,gameAction:{type:'play',card:'s-gain'}})).status===400,'Out-of-turn game action is rejected by the server');
+ const moved=await mover.api('/api/room',{action:'game-action',code:mroom.room.code,gameAction:{type:'play',card:'s-gain'}});
+ ok(moved.status===200&&moved.room.gameView.turn!==vm.turn,'In-turn game action is applied and the turn advances');
+ await db.prepare('UPDATE sessions SET private_fail=0,private_fail_at=0 WHERE player_id=?').bind(pm.player.id).run();
+ const brute=[];for(let i=0;i<7;i++)brute.push((await gx.api('/api/unlock',{code:`guess-${i}`})).status);
+ ok(brute.slice(0,5).every(st=>st===403)&&brute.slice(5).every(st=>st===429),'Repeated wrong codes are rate limited per session');
  console.log(`PASS ${checks} integration checks`);
 }finally{await mf.dispose();}

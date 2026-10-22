@@ -1,6 +1,8 @@
 {
   "name": "boardmates-local",
   "compatibility_date": "2026-05-15",
+  // Local-only group code that unlocks private games (never used in production).
+  "vars": { "PRIVATE_GAME_CODE": "dev-group-code" },
   "d1_databases": [{
     "binding": "DB",
     "database_name": "site-creator-d1",

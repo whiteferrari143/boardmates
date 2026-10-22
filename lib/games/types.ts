@@ -2,6 +2,8 @@ export interface GameContext { playerIds: string[]; hostId: string }
 export interface GameDefinition<S = unknown, A = unknown, V = unknown> {
   id: string; name: string; description: string; minPlayers: number; maxPlayers: number;
   status: 'available' | 'coming-soon'; screen: string; color: string; icon: string; category: string;
+  /** Hidden from the lobby and room creation until the player unlocks private games with the group code. */
+  private?: boolean;
   createInitialState(context: GameContext): S;
   validateAction(state: S, action: unknown, actorId: string, context: GameContext): boolean;
   updateState(state: S, action: A, actorId: string, context: GameContext): S;

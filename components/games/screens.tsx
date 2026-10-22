@@ -1,6 +1,6 @@
 import type {ComponentType} from 'react';
-import {RoomTest} from './RoomTest';
+import {CrystalMarket} from './CrystalMarket';
 import {Spyfall} from './Spyfall';
 import {Deception} from './Deception';
 import type {GameScreenProps} from './types';
-export const gameScreens:Record<string,ComponentType<GameScreenProps>>={'room-test':RoomTest,spyfall:Spyfall,deception:Deception};
+export const gameScreens:Record<string,ComponentType<GameScreenProps>>={'crystal-market':CrystalMarket,spyfall:Spyfall,deception:Deception};

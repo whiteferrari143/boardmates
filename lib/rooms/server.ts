@@ -5,7 +5,9 @@ import { context,gameAction } from '@/lib/games/engine';
 import type { RoomState,RoomView } from './types';
 import {tickSpyfall,type SpyState} from '@/lib/games/spyfall';
 import {tickDeception,type DeceptionState} from '@/lib/games/deception';
-function advance(room:RoomState){if(room.phase!=='playing')return;if(room.gameId==='spyfall')tickSpyfall(room.state as SpyState,context(room));if(room.gameId==='deception')tickDeception(room.state as DeceptionState,context(room));if(gameRegistry[room.gameId].isFinished(room.state))room.phase='finished';}
+import {tickMarket,type MarketState} from '@/lib/games/market';
+import {privateUnlocked} from '@/lib/games/access';
+function advance(room:RoomState){if(room.phase!=='playing')return;if(room.gameId==='spyfall')tickSpyfall(room.state as SpyState,context(room));if(room.gameId==='deception')tickDeception(room.state as DeceptionState,context(room));if(room.gameId==='crystal-market')tickMarket(room.state as MarketState,context(room));if(gameRegistry[room.gameId].isFinished(room.state))room.phase='finished';}
 export const ONLINE_MS=15000, RESERVATION_MS=120000;
 const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function normalizeCode(value:unknown) { if(typeof value!=='string') throw new AppError('กรุณากรอกรหัสห้อง');const code=value.trim().toUpperCase();if(!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) throw new AppError('รหัสห้องต้องเป็นตัวอักษรหรือตัวเลข 6 ตัว');return code; }
@@ -45,6 +47,7 @@ export async function mutate(code:string,player:Player,fn:(room:RoomState)=>void
 }
 export async function createRoom(player:Player,gameId:string) {
  const game=gameRegistry[gameId];if(!game||game.status!=='available')throw new AppError('เกมนี้ยังไม่เปิดให้เล่น');
+ if(game.private&&!(await privateUnlocked(player.id)))throw new AppError('เกมนี้เปิดให้เฉพาะกลุ่มที่มีรหัส',403);
  if(await currentRoom(player.id))throw new AppError('คุณอยู่ในห้องแล้ว กรุณาออกจากห้องก่อน',409);
  for(let i=0;i<8;i++){
  const bytes=crypto.getRandomValues(new Uint8Array(6));const code=Array.from(bytes,b=>alphabet[b%alphabet.length]).join('');
@@ -57,10 +60,12 @@ export async function createRoom(player:Player,gameId:string) {
  }throw new AppError('สร้างรหัสห้องไม่สำเร็จ กรุณาลองใหม่',503);
 }
 export async function roomCommand(code:string,player:Player,action:string,payload:Record<string,unknown>={}) {
+ const canJoinPrivate=action==='join'?await privateUnlocked(player.id):true;
  if(action==='join')await claimSeat(player.id,code);
  try{const result=await mutate(code,player,room=>{
  let member=room.members.find(m=>m.id===player.id);
  if(action==='join'&&!member) {
+  if(gameRegistry[room.gameId].private&&!canJoinPrivate)throw new AppError('เกมนี้เปิดให้เฉพาะกลุ่มที่มีรหัส',403);
   if(room.phase!=='waiting')throw new AppError('ห้องนี้เริ่มเล่นแล้ว รอรอบถัดไป');
   if(room.members.length>=gameRegistry[room.gameId].maxPlayers)throw new AppError('ห้องเต็มแล้ว ลองเข้าห้องอื่น');
   const now=Date.now();member={...player,ready:false,lastSeen:now,joined:now};room.members.push(member);
